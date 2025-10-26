@@ -5,6 +5,9 @@ seaborn
 scikit-learn
 opencv-python
 albumentations
-tensorflow==2.15.0
-keras==2.15.0
+tensorflow==2.17.0
+keras==3.11.3
 jupyter
+Django>=4.2
+opencv-python-headless
+Pillow

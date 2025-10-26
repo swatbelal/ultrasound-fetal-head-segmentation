@@ -1,0 +1,47 @@
+{% extends 'inference_app/base.html' %}
+{% block content %}
+<div class="row">
+  <div class="col-md-6">
+    <div class="card p-3 mb-3">
+      <h5>Metrics</h5>
+      {% if metrics %}
+        <pre style="font-size:0.9rem">{{ metrics|safe }}</pre>
+      {% else %}
+        <p class="text-muted">No metrics.json found. Run evaluation below.</p>
+      {% endif %}
+      <button id="runEval" class="btn btn-primary">Run Evaluation (train + test)</button>
+    </div>
+
+    <div class="card p-3">
+      <h5>Sample counts</h5>
+      <p>Train overlays: {{ train_count }}</p>
+      <p>Test overlays: {{ test_count }}</p>
+      <a href="/gallery/" class="btn btn-outline-secondary">Open Gallery</a>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card p-3">
+      <h5>Quick actions</h5>
+      <ul>
+        <li><a href="/upload/">Upload single image for ad-hoc inference</a></li>
+        <li><a href="/gallery/">View generated overlays</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('runEval').addEventListener('click', async ()=>{
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerText = 'Running...';
+  const r = await fetch('/run_eval/');
+  const j = await r.json();
+  alert('Done. Train mean Dice=' + j.train_mean_dice + '\nTest mean Dice=' + j.test_mean_dice);
+  btn.disabled = false;
+  btn.innerText = 'Run Evaluation (train + test)';
+  location.reload();
+});
+</script>
+{% endblock %}

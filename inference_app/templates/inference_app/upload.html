@@ -1,0 +1,23 @@
+{% extends 'inference_app/base.html' %}
+{% block content %}
+<div class="row">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <h5>Upload image for inference</h5>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary" type="submit">Upload & Run</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-md-6">
+    {% if result %}
+      <h5>Result</h5>
+      <img src="{{ result.image }}" class="img-fluid mb-2" alt="uploaded">
+      <p>Overlay: <a href="{{ result.overlay }}">{{ result.overlay }}</a></p>
+      <p>Pred mask: <a href="{{ result.pred_mask }}">{{ result.pred_mask }}</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

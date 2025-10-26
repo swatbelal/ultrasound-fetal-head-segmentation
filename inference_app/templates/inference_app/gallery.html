@@ -1,0 +1,46 @@
+{% extends 'inference_app/base.html' %}
+{% block content %}
+<h4>Gallery</h4>
+<p>Train overlays directory: {{ train_dir }}</p>
+<div class="row">
+  {% for img in train_imgs %}
+    <div class="col-md-3 mb-3">
+      <div class="card">
+        <img src="/static/inference_app/placeholder.png" data-src="{{ train_dir }}/{{ img }}" class="card-img-top lazy" />
+        <div class="card-body">
+          <p class="card-text">{{ img }}</p>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <p class="text-muted">No train overlays found.</p>
+  {% endfor %}
+</div>
+
+<h4 class="mt-4">Test</h4>
+<p>Test overlays directory: {{ test_dir }}</p>
+<div class="row">
+  {% for img in test_imgs %}
+    <div class="col-md-3 mb-3">
+      <div class="card">
+        <img src="/static/inference_app/placeholder.png" data-src="{{ test_dir }}/{{ img }}" class="card-img-top lazy" />
+        <div class="card-body">
+          <p class="card-text">{{ img }}</p>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <p class="text-muted">No test overlays found.</p>
+  {% endfor %}
+</div>
+
+<script>
+// simple lazy loader for demo: replace src with data-src
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('img.lazy').forEach(img=>{
+    const src = img.getAttribute('data-src');
+    if(src) img.src = src;
+  });
+});
+</script>
+{% endblock %}

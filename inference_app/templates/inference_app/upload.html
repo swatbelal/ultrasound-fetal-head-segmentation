@@ -13,10 +13,44 @@
   </div>
   <div class="col-md-6">
     {% if result %}
-      <h5>Result</h5>
-      <img src="{{ result.image }}" class="img-fluid mb-2" alt="uploaded">
-      <p>Overlay: <a href="{{ result.overlay }}">{{ result.overlay }}</a></p>
-      <p>Pred mask: <a href="{{ result.pred_mask }}">{{ result.pred_mask }}</a></p>
+    <h5 class="mb-3">Result Preview</h5>
+    <div class="row">
+      <!-- Overlay -->
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <img src="{{ result.overlay }}" class="card-img-top" alt="Overlay">
+          <div class="card-body text-center">
+            <p class="card-text">
+              <a target="_blank" href="{{ result.overlay }}">Overlay</a>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Original Image -->
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <img src="{{ result.image }}" class="card-img-top" alt="Original Image">
+          <div class="card-body text-center">
+            <p class="card-text">
+              <a target="_blank" href="{{ result.image }}">Original Image</a>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Predicted Mask -->
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <img src="{{ result.pred_mask }}" class="card-img-top" alt="Predicted Mask">
+          <div class="card-body text-center">
+            <p class="card-text">
+              <a target="_blank" href="{{ result.pred_mask }}">Predicted Mask</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
     {% endif %}
   </div>
 </div>

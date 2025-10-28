@@ -1,0 +1,30 @@
+{% extends 'inference_app/base.html' %}
+{% block content %}
+<h4>Uploaded Inference Gallery</h4>
+
+{% if groups %}
+  <div class="row">
+    {% for g in groups %}
+      <div class="col-md-4 mb-4">
+        <div class="card">
+          <img src="{{ g.image }}" class="card-img-top" alt="{{ g.basename }}">
+          <div class="card-body">
+            <h6>{{ g.basename }}</h6>
+            {% if g.overlay %}
+              <p><a target="_blank" href="{{ g.overlay }}">Overlay</a></p>
+              <img src="{{ g.overlay }}" class="img-fluid mb-2" alt="Overlay">
+            {% endif %}
+            {% if g.pred_mask %}
+              <p><a target="_blank" href="{{ g.pred_mask }}">Predicted Mask</a></p>
+              <img src="{{ g.pred_mask }}" class="img-fluid mb-2" alt="Prediction">
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-muted">No uploaded media found.</p>
+{% endif %}
+
+{% endblock %}

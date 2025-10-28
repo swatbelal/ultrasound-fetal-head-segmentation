@@ -6,7 +6,7 @@
   {% for img in train_imgs %}
     <div class="col-md-3 mb-3">
       <div class="card">
-        <img src="/static/inference_app/placeholder.png" data-src="{{ train_dir }}/{{ img }}" class="card-img-top lazy" />
+        <img src="/static/inference_app/placeholder.png" data-src="{{ train_url }}/{{ img }}" class="card-img-top lazy" />
         <div class="card-body">
           <p class="card-text">{{ img }}</p>
         </div>
@@ -23,7 +23,7 @@
   {% for img in test_imgs %}
     <div class="col-md-3 mb-3">
       <div class="card">
-        <img src="/static/inference_app/placeholder.png" data-src="{{ test_dir }}/{{ img }}" class="card-img-top lazy" />
+        <img src="/static/inference_app/placeholder.png" data-src="{{ test_url }}/{{ img }}" class="card-img-top lazy" />
         <div class="card-body">
           <p class="card-text">{{ img }}</p>
         </div>

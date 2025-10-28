@@ -1,0 +1,41 @@
+<div class="card">
+  <div class="card-header">
+    <h5>Evaluation log</h5>
+    <button id="start-eval" class="btn btn-primary btn-sm">Start Eval</button>
+  </div>
+  <div class="card-body">
+    <pre id="eval-log" style="height: 300px; overflow:auto; background:#111; color:#eee; padding:10px;"></pre>
+    <div id="metrics" class="mt-3"></div>
+  </div>
+</div>
+
+<script>
+document.getElementById("start-eval").addEventListener("click", () => {
+  // open SSE connection
+  const evtSource = new EventSource("{% url 'run_eval_stream' %}");
+
+  const log = document.getElementById("eval-log");
+  const metricsDiv = document.getElementById("metrics");
+
+  evtSource.onmessage = function(e) {
+    // plain data messages
+    log.textContent += e.data + "\n";
+    log.scrollTop = log.scrollHeight;
+  };
+
+  evtSource.addEventListener("metrics", function(e) {
+    // typed metrics event with JSON payload
+    try {
+      const obj = (typeof e.data === "string") ? JSON.parse(e.data) : e.data;
+      metricsDiv.innerHTML = "<pre>" + JSON.stringify(obj, null, 2) + "</pre>";
+    } catch (err) {
+      metricsDiv.textContent = "Could not parse metrics: " + e.data;
+    }
+  });
+
+  evtSource.onerror = function(err) {
+    log.textContent += "[Connection error]\n";
+    evtSource.close();
+  };
+});
+</script>

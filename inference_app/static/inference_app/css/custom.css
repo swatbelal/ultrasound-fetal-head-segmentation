@@ -1,2 +1,17 @@
-body { padding-bottom: 40px; }
-.card img { height: 180px; object-fit: cover; }
+body {
+  padding-bottom: 40px;
+}
+.card img {
+  /*height: 180px; */
+  object-fit: cover;
+}
+#metrics {
+  font-size: 0.9rem;
+  max-height: 7em;        /* about 5 lines */
+  overflow: auto;         /* scrollbar if too big */
+  padding: 0.5em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f8f9fa;
+  white-space: pre-wrap;  /* preserves formatting but wraps long lines */
+}

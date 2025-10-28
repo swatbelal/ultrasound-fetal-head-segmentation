@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import sys
+import os
 import json
+import shutil
+import traceback
 from pathlib import Path
 
 import cv2
@@ -8,9 +10,9 @@ import numpy as np
 from tensorflow.keras.models import load_model
 
 import config as cfg
+from custom_logging import logger
 from tools import (read_image, read_mask_png, read_mask_json_if_exists,
                    find_mask_for_image, save_overlay, to_img_name)
-
 
 THRESHOLD = getattr(cfg, "THRESHOLD", 0.5)
 IMG_SIZE = tuple(cfg.IMG_SIZE)  # (H, W)
@@ -75,7 +77,7 @@ def evaluate_split(model, img_dir: Path, mask_dir: Path, out_subdir: Path):
         if mask_type is None:
             stats["skipped_no_mask"] += 1
             # still produce overlay with empty GT (optional) - here we skip inference if no mask
-            print(f"[{idx}/{len(img_files)}] ⚠️ No mask for {img_path.name}, skipping.")
+            logger.info(f"[{idx}/{len(img_files)}] ⚠️ No mask for {img_path.name}, skipping.")
             continue
 
         # load image
@@ -88,7 +90,7 @@ def evaluate_split(model, img_dir: Path, mask_dir: Path, out_subdir: Path):
                 json_flagged = False
             except FileNotFoundError:
                 stats["skipped_no_mask"] += 1
-                print(f"[{idx}/{len(img_files)}] ⚠️ Couldn't open mask PNG for {img_path.name}, skipping.")
+                logger.info(f"[{idx}/{len(img_files)}] ⚠️ Couldn't open mask PNG for {img_path.name}, skipping.")
                 continue
         else:
             mask_true, json_flagged = read_mask_json_if_exists(mask_path)
@@ -106,7 +108,7 @@ def evaluate_split(model, img_dir: Path, mask_dir: Path, out_subdir: Path):
         try:
             pred = model.predict(inp, verbose=0)[0]
         except Exception as e:
-            print(f"[{idx}/{len(img_files)}] ❌ model predict error for {img_path.name}: {e}")
+            logger.warning(f"[{idx}/{len(img_files)}] model predict error for {img_path.name}: {e}")
             continue
 
         if pred.ndim == 3:
@@ -152,8 +154,8 @@ def evaluate_split(model, img_dir: Path, mask_dir: Path, out_subdir: Path):
         if idx % 50 == 0 or idx == len(img_files):
             mean_inc = float(np.mean(dices)) if dices else 0.0
             mean_excl = float(np.mean(dices_excl_empty)) if dices_excl_empty else None
-            print(f"[{idx}/{len(img_files)}] Processed {idx}/{len(img_files)} - mean Dice (inc): {mean_inc:.4f}, "
-                  f"mean Dice (excl-empty): {mean_excl if mean_excl is not None else 'N/A'}")
+            logger.info(f"[{idx}/{len(img_files)}] Processed {idx}/{len(img_files)} - mean Dice (inc): {mean_inc:.4f}, "
+                        f"mean Dice (excl-empty): {mean_excl if mean_excl is not None else 'N/A'}")
 
     # aggregate metrics
     mean_dice_incl = float(np.mean(dices)) if dices else 0.0
@@ -178,47 +180,84 @@ def evaluate_split(model, img_dir: Path, mask_dir: Path, out_subdir: Path):
 # -----------------------
 def main():
     try:
-        print(f"Loading model from: {MODEL_PATH}")
-        model = load_model(str(MODEL_PATH), compile=False)
+        # create lock
+        pid = os.getpid()
+        lock_data = {"pid": pid, "status": "running"}
+        cfg.EVAL_LOCK_FILE.write_text(json.dumps(lock_data))
+        try:
+            logger.info(f"Loading model from: {MODEL_PATH}")
+            model = load_model(str(MODEL_PATH), compile=False)
+        except Exception as e:
+            logger.exception(f"Failed to load model: {e}")
+            raise
+
+        # evaluate two splits: train and test (user's cfg must point to correct folders)
+        splits = {
+            "train": (Path(cfg.TRAIN_IMG_DIR), Path(cfg.TRAIN_MASK_IMG_DIR)),
+            "test": (Path(cfg.VAL_IMG_DIR), Path(cfg.VAL_MASK_IMG_DIR))  # adjust if your test has a separate cfg entry
+        }
+
+        # Define temp, backup directories
+        temp_dir = str(SAMPLES_DIR) + "_temp"
+        backup_dir = str(SAMPLES_DIR) + "_backup"
+
+        # --- cleanup/recreate temp at the start ---
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        os.makedirs(temp_dir, exist_ok=True)
+
+        temp_dir = Path(temp_dir)
+        logger.info(f"Working inside: {temp_dir}")
+
+        overall_results = {}
+        for name, (img_dir, mask_dir) in splits.items():
+            logger.info(f"\n=== Evaluating split: {name} ===")
+            if not img_dir.exists():
+                logger.info(f"⚠️ Image dir for split '{name}' not found: {img_dir} (skipping split)")
+                continue
+            if not mask_dir.exists():
+                logger.info(f"⚠️ Mask dir for split '{name}' not found: {mask_dir} (skipping split)")
+                continue
+
+            out_subdir = temp_dir / name
+            out_subdir.mkdir(parents=True, exist_ok=True)
+            split_res = evaluate_split(model, img_dir, mask_dir, out_subdir)
+            overall_results[name] = split_res
+
+            logger.info(f"✅ Split '{name}' done. Metrics (including empties): "
+                        f"Dice={split_res['metrics']['mean_dice_including_empty']:.4f}, "
+                        f"IoU={split_res['metrics']['mean_iou_including_empty']:.4f}")
+            excl = split_res['metrics']['mean_dice_excluding_empty_gt']
+            logger.info(f"   mean Dice (excluding empty GTs): {excl if excl is not None else 'N/A'}")
+            logger.info(f"   Overlays saved to: {out_subdir}")
+
+        # --- finalize: replace original with temp ---
+        if os.path.exists(SAMPLES_DIR):
+            logger.info(f"Backing up existing samples dir to {backup_dir}")
+            if os.path.exists(backup_dir):
+                shutil.rmtree(backup_dir)  # clear old backup if it exists
+            os.rename(SAMPLES_DIR, backup_dir)  # safe rename instead of deleting
+
+        # Move temp to final
+        os.rename(temp_dir, SAMPLES_DIR)
+        logger.info(f"Replaced {SAMPLES_DIR} with {temp_dir}")
+
+        # write full metrics file
+        metrics_path = RESULTS_DIR / "metrics.json"
+        with open(metrics_path, "w") as f:
+            json.dump(overall_results, f, indent=4)
+
+        logger.info(f"\n📊 All done. Metrics saved to: {metrics_path}")
+        logger.info(f"🖼️ Sample predictions saved under: {SAMPLES_DIR}")
     except Exception as e:
-        print(f"❌ Failed to load model: {e}", file=sys.stderr)
+        with open(cfg.EVAL_LOCK_FILE, "a") as log:
+            log.write(f"Error:\n{e}")
+            logger.exception(traceback.format_exc())
         raise
-
-    # evaluate two splits: train and test (user's cfg must point to correct folders)
-    splits = {
-        "train": (Path(cfg.TRAIN_IMG_DIR), Path(cfg.TRAIN_MASK_IMG_DIR)),
-        "test": (Path(cfg.VAL_IMG_DIR), Path(cfg.VAL_MASK_IMG_DIR))  # adjust if your test has a separate cfg entry
-    }
-
-    overall_results = {}
-    for name, (img_dir, mask_dir) in splits.items():
-        print(f"\n=== Evaluating split: {name} ===")
-        if not img_dir.exists():
-            print(f"⚠️ Image dir for split '{name}' not found: {img_dir} (skipping split)")
-            continue
-        if not mask_dir.exists():
-            print(f"⚠️ Mask dir for split '{name}' not found: {mask_dir} (skipping split)")
-            continue
-
-        out_subdir = SAMPLES_DIR / name
-        out_subdir.mkdir(parents=True, exist_ok=True)
-        split_res = evaluate_split(model, img_dir, mask_dir, out_subdir)
-        overall_results[name] = split_res
-
-        print(f"✅ Split '{name}' done. Metrics (including empties): "
-              f"Dice={split_res['metrics']['mean_dice_including_empty']:.4f}, "
-              f"IoU={split_res['metrics']['mean_iou_including_empty']:.4f}")
-        excl = split_res['metrics']['mean_dice_excluding_empty_gt']
-        print(f"   mean Dice (excluding empty GTs): {excl if excl is not None else 'N/A'}")
-        print(f"   Overlays saved to: {out_subdir}")
-
-    # write full metrics file
-    metrics_path = RESULTS_DIR / "metrics.json"
-    with open(metrics_path, "w") as f:
-        json.dump(overall_results, f, indent=4)
-
-    print(f"\n📊 All done. Metrics saved to: {metrics_path}")
-    print(f"🖼️ Sample predictions saved under: {SAMPLES_DIR}")
+    finally:
+        # update lock when done
+        done_data = {"pid": None, "status": "done"}
+        cfg.EVAL_LOCK_FILE.write_text(json.dumps(done_data))
 
 
 if __name__ == "__main__":

@@ -11,3 +11,4 @@ jupyter
 Django>=4.2
 opencv-python-headless
 Pillow
+psutil

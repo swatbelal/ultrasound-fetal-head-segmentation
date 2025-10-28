@@ -1,6 +1,6 @@
-import os
 import sys
 from pathlib import Path
+from src.config import RESULTS_DIR
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -39,5 +39,7 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "inference_app" / "static"]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+RESULTS_URL = "/results/"
+RESULTS_ROOT = RESULTS_DIR
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

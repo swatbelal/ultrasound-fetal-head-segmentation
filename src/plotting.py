@@ -34,4 +34,4 @@ plt.title("Mean IoU")
 
 plt.tight_layout()
 plt.savefig(f"{cfg.RESULTS_DIR}/training_curves.png")
-print("📊 Saved training curves to .results/training_curves.png")
+print(f"📊 Saved training curves to {cfg.RESULTS_DIR}/training_curves.png")

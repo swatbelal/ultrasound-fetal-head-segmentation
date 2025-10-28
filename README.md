@@ -34,7 +34,7 @@ This README covers installation, running, web UI, troubleshooting, and suggested
 
 6. Run ad-hoc inference:
    ```
-   python src/inference.py --model .results/unet_fetal_head.keras --input data/.../img/1_HC.png --outdir .results/inference
+   python src/inference.py --model results/unet_fetal_head.keras --input data/.../img/1_HC.png --outdir results/inference
    ```
 
 7. Run Django server:
@@ -48,4 +48,4 @@ This README covers installation, running, web UI, troubleshooting, and suggested
 - **Serving images in Django**: do not use absolute Windows paths in `<img src>`. Configure `MEDIA_URL`/`MEDIA_ROOT` and `RESULTS_URL`/`RESULTS_ROOT` and add `django.views.static.serve` url patterns for development.
 - **Lock file & cancel**: `evaluate.py` writes `results/eval.lock` with `{"pid":..., "status":"running"}`. The dashboard reads it to show status and can `os.kill(pid, SIGTERM)` to cancel (platform caveats on Windows).
 - **Log encoding errors**: read logs with `encoding="utf-8", errors="replace"` to avoid UnicodeDecodeError on Windows.
-- **Docker (OpenCV deps)**: add `libgl1 libglib2.0-0` to container image.
+- **Docker (OpenCV deps)**: added `libgl1 libglib2.0-0`; run args (placeholders): `--gpus all --shm-size=8g --memory=16g --cpus=8 -p 0.0.0.0:8585:8585 -p 0.0.0.0:8585:8585/udp`

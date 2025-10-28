@@ -4,12 +4,20 @@
   <div class="col-md-6">
     <div class="card p-3 mb-3">
       <h5>Metrics</h5>
-      {% if metrics %}
-        <pre style="font-size:0.9rem">{{ metrics|safe }}</pre>
-      {% else %}
-        <p class="text-muted">No metrics.json found. Run evaluation below.</p>
-      {% endif %}
-      <button id="runEval" class="btn btn-primary">Run Evaluation (train + test)</button>
+      <div id="metricsContainer">
+        {% if metrics %}
+          <pre id="metrics" style="font-size:0.9rem">{{ metrics|safe }}</pre>
+        {% else %}
+          <p class="text-muted">No metrics.json found. Run evaluation below.</p>
+        {% endif %}
+      </div>
+      <button id="runEval" disabled="disabled" class="btn btn-primary">Run Evaluation</button>
+      <button id="cancelEval" disabled="disabled" class="btn btn-danger">Cancel Evaluation</button>
+
+      <div class="mt-3">
+        <h5>Evaluation Log</h5>
+        <pre id="evalLog" style="height:300px; overflow:auto; background:#111; color:#0f0; padding:10px;"></pre>
+      </div>
     </div>
 
     <div class="card p-3">
@@ -25,6 +33,7 @@
       <h5>Quick actions</h5>
       <ul>
         <li><a href="/upload/">Upload single image for ad-hoc inference</a></li>
+        <li><a href="/upload_gallery/">View uploaded generated images</a></li>
         <li><a href="/gallery/">View generated overlays</a></li>
       </ul>
     </div>
@@ -32,16 +41,152 @@
 </div>
 
 <script>
-document.getElementById('runEval').addEventListener('click', async ()=>{
-  const btn = event.target;
+let evalJustStarted = false;
+
+async function refreshStatus() {
+  if (evalJustStarted) return;  // skip one cycle until lock is written
+
+  const res = await fetch('/status_eval/');
+  const j = await res.json();
+  const btn = document.getElementById('runEval');
+  const cancelBtn = document.getElementById('cancelEval');
+
+  if (j.status === 'running') {
+    btn.disabled = true;
+    cancelBtn.disabled = false;
+    btn.innerText = 'Evaluation Running...';
+    await refreshLog(); // fetch logs only when running
+  } else {
+    btn.disabled = false;
+    cancelBtn.disabled = true;
+    btn.innerText = 'Run Evaluation';
+  }
+}
+
+async function refreshLog() {
+  try {
+    const r = await fetch('/view_log/');
+    const txt = await r.text();
+    const log = document.getElementById('evalLog');
+    log.innerText = txt;
+    log.scrollTop = log.scrollHeight; // auto-scroll to bottom
+  } catch (err) {
+    console.error("Log fetch failed", err);
+  }
+}
+
+refreshStatus();
+// Poll status every 3s
+setInterval(refreshStatus, 3000);
+
+let isCancelled = false;
+
+document.getElementById('runEval').addEventListener('click', ()=>{
+  const btn = document.getElementById('runEval');
+  const cancelBtn = document.getElementById('cancelEval');
   btn.disabled = true;
+  cancelBtn.disabled = false;
   btn.innerText = 'Running...';
-  const r = await fetch('/run_eval/');
-  const j = await r.json();
-  alert('Done. Train mean Dice=' + j.train_mean_dice + '\nTest mean Dice=' + j.test_mean_dice);
-  btn.disabled = false;
-  btn.innerText = 'Run Evaluation (train + test)';
-  location.reload();
+  evalJustStarted = true;
+
+  // clear log
+  const log = document.getElementById('evalLog');
+  log.innerText = '';
+
+  let evtSource;
+  try {
+    evtSource = new EventSource('/run_eval_stream/');
+  } catch (e) {
+    alert("❌ Failed to start evaluation: " + e.message);
+    evalJustStarted = false;
+    refreshStatus();
+    return;
+  }
+
+  evtSource.onmessage = (e) => {
+    log.innerText += e.data + "\n";
+    log.scrollTop = log.scrollHeight;
+  };
+
+  evtSource.addEventListener('done', async ()=> {
+    evtSource.close();
+    evalJustStarted = false;
+    await refreshStatus();
+
+    // Fetch updated metrics.json
+    try {
+      const res = await fetch('/results/metrics.json');
+      const container = document.getElementById('metricsContainer');
+      if (res.ok) {
+        const data = await res.json();
+        container.innerHTML = `
+          <pre id="metrics" style="font-size:0.9rem">${JSON.stringify(data, null, 2)}</pre>
+        `;
+      } else {
+        container.innerHTML = `<p class="text-muted">No metrics.json found. Run evaluation below.</p>`;
+      }
+    } catch (err) {
+      console.error("Failed to fetch metrics:", err);
+    }
+
+    alert("✅ Evaluation finished!");
+  });
+
+  evtSource.addEventListener('error', (e) => {
+
+    // // Convert the object to a readable text
+    // let errorDetails = JSON.stringify(e, Object.getOwnPropertyNames(e), 2);
+
+    if(!isCancelled){
+    // Error: could be 400 Bad Request, disconnect, etc.
+    log.innerText += "\n[ERROR] Evaluation stopped or failed.\n";
+    // alert('❌ Evaluation stopped or failed. ' + errorDetails);
+    alert('❌ Evaluation stopped or failed.');
+    } else isCancelled = false;
+
+    evtSource.close();
+    evalJustStarted = false;
+    refreshStatus();
+  });
+});
+
+document.getElementById('cancelEval').addEventListener('click', async ()=>{
+  const cancelBtn = document.getElementById('cancelEval');
+  cancelBtn.disabled = true;
+  isCancelled = true;
+
+  try {
+    const r = await fetch('/cancel_eval/');
+    const j = await r.json();
+
+    if (j.error && j.error.includes("PID not available")) {
+      alert("⏳ Evaluation is still starting, please try cancel again in a few seconds.");
+      cancelBtn.disabled = false; // allow retry
+      return;
+    }
+
+    if (j.status === "cancelled") {
+      alert("✅ Evaluation cancelled successfully.");
+    } else {
+      alert("⚠️ " + JSON.stringify(j));
+    }
+
+    // Clear log
+    const log = document.getElementById('evalLog');
+    if (log) log.innerText = '';
+
+    // Re-enable Run
+    const btn = document.getElementById('runEval');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = 'Run Evaluation';
+    }
+
+  } catch (err) {
+    alert("❌ Cancel request failed: " + err.message);
+  }
+
+  await refreshStatus();
 });
 </script>
 {% endblock %}

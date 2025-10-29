@@ -7,6 +7,26 @@ A small U-Net-based segmentation project for fetal head ultrasound images, with:
 - ad-hoc inference (`inference.py`)
 - a Django dashboard to run inference/evaluation, show logs, cancel runs and browse overlays.
 
+---
+
+## Example case — image & masks
+
+Original ultrasound (left) and mask visualizations (right).
+
+|                   Original                   |                 GT overlay                 |
+|:--------------------------------------------:|:------------------------------------------:|
+| ![Original](results/ad_hoc/117_HC_image.png) | ![GT overlay](media/117_HC_GT_overlay.png) |
+
+|                   Model overlay                    |             Model circle mask (BW)              |
+|:--------------------------------------------------:|:-----------------------------------------------:|
+| ![Pred overlay](results/ad_hoc/117_HC_overlay.png) | ![Pred BW](results/ad_hoc/117_HC_pred_mask.png) |
+
+|       GT circle mask (BW)        |
+|:--------------------------------:|
+| ![GT BW](media/117_HC_GT_BW.png) |
+
+---
+
 This README covers installation, running, web UI, troubleshooting, and suggested commit messages.
 
 ## Quickstart — local
@@ -41,6 +61,8 @@ This README covers installation, running, web UI, troubleshooting, and suggested
    ```
    python manage.py runserver 0.0.0.0:8585
    ```
+
+---
 
 ## Important notes (troubleshooting)
 
